@@ -14,7 +14,7 @@ export default function ContactPage() {
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900">Contact Us</h1>
           <p className="mt-4 text-xl text-gray-600 max-w-3xl mx-auto">
-            Ready to eliminate middlemen and connect directly? We're here to help you get started.
+            Ready to eliminate middlemen and connect directly? We&rsquo;re here to help you get started.
           </p>
         </div>
 
@@ -212,7 +212,7 @@ export default function ContactPage() {
                     className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
                   />
                   <label htmlFor="newsletter" className="ml-2 text-sm text-gray-600">
-                    I'd like to receive updates about DirectConnect and B2B marketplace insights
+                    I&rsquo;d like to receive updates about DirectConnect and B2B marketplace insights
                   </label>
                 </div>
 

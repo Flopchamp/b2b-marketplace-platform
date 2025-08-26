@@ -305,7 +305,7 @@ export default function CompaniesPage() {
                 <div className="text-blue-600 font-semibold">{story.company}</div>
                 <div className="text-sm text-gray-600 mt-1">{story.industry}</div>
                 <div className="text-lg font-semibold text-green-600 mt-4">{story.results}</div>
-                <p className="text-gray-600 mt-4 italic">"{story.quote}"</p>
+                <p className="text-gray-600 mt-4 italic">&ldquo;{story.quote}&rdquo;</p>
               </div>
             ))}
           </div>
