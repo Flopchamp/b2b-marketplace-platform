@@ -59,15 +59,49 @@ function RegisterForm() {
     }
 
     try {
+      // Prepare submission data based on account type
+      let submissionData;
+      
+      if (accountType === 'company') {
+        submissionData = {
+          userType: accountType,
+          name: formData.company, // Map company to name for API
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+          website: formData.website,
+          address: formData.address ? {
+            street: formData.address,
+            city: formData.city,
+            state: formData.state,
+            zipCode: formData.zipCode,
+            country: formData.country,
+          } : undefined,
+        };
+      } else {
+        submissionData = {
+          userType: accountType,
+          businessName: formData.company, // Use company field as business name for retailers
+          contactPerson: `${formData.firstName} ${formData.lastName}`,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+          address: formData.address ? {
+            street: formData.address,
+            city: formData.city,
+            state: formData.state,
+            zipCode: formData.zipCode,
+            country: formData.country,
+          } : undefined,
+        };
+      }
+
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userType: accountType,
-          ...formData,
-        }),
+        body: JSON.stringify(submissionData),
       });
 
       const data = await response.json();
