@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DevAuthService as AuthService, CompanyRegistration, RetailerRegistration } from '@/lib/auth/dev-auth-service';
+import { AuthService, CompanyRegistration, RetailerRegistration } from '@/lib/auth/postgresql-auth-service';
 
 export async function POST(request: NextRequest) {
   try {
