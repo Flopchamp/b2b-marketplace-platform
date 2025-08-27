@@ -1,4 +1,7 @@
-﻿import Link from "next/link";
+﻿"use client";
+
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { 
   BuildingOfficeIcon,
   EnvelopeIcon,
@@ -7,6 +10,12 @@ import {
 } from "@heroicons/react/24/outline";
 
 export function Footer() {
+  const pathname = usePathname();
+  
+  // Don't show footer on dashboard pages
+  if (pathname.startsWith('/dashboard')) {
+    return null;
+  }
   const footerSections = [
     {
       title: "Platform",
