@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { 
   Bars3Icon, 
@@ -12,6 +13,13 @@ import {
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
+  
+  // Don't show header on dashboard pages
+  if (pathname.startsWith('/dashboard')) {
+    return null;
+  }
+  
   // Temporarily disabled NextAuth hooks
   // const { data: session } = useSession();
   const session = null; // Placeholder until NextAuth is properly configured
