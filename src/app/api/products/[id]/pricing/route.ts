@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ProductService from '@/lib/services/product-service';
+import ProductService from '@/lib/services/product-service-clean';
 
 // GET /api/products/[id]/pricing?quantity=X - Calculate bulk pricing
 export async function GET(

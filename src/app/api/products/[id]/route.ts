@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ProductService from '@/lib/services/product-service';
+import ProductService from '@/lib/services/product-service-clean';
 import { verifyAuth } from '@/lib/auth/auth-middleware';
 
 // GET /api/products/[id] - Get product by ID
@@ -58,7 +58,6 @@ export async function PUT(
     
     const product = await ProductService.updateProduct(
       params.id,
-      authResult.user.id,
       body
     );
 
@@ -121,8 +120,7 @@ export async function DELETE(
     }
 
     const product = await ProductService.deleteProduct(
-      params.id,
-      authResult.user.id
+      params.id
     );
 
     return NextResponse.json({

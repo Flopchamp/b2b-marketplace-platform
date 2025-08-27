@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ProductService from '@/lib/services/product-service';
+import ProductService from '@/lib/services/product-service-clean';
 import { verifyAuth } from '@/lib/auth/auth-middleware';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // GET /api/products - Search products
 export async function GET(request: NextRequest) {
@@ -58,9 +61,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get user's company ID
+    const user = await prisma.user.findUnique({
+      where: { id: authResult.user.id },
+      select: { companyId: true }
+    });
+
+    if (!user?.companyId) {
+      return NextResponse.json(
+        { success: false, error: 'User is not associated with a company' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     
-    const product = await ProductService.createProduct(authResult.user.id, body);
+    const product = await ProductService.createProduct(user.companyId, body);
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ProductService from '@/lib/services/product-service';
+import ProductService from '@/lib/services/product-service-clean';
 import { verifyAuth } from '@/lib/auth/auth-middleware';
 
 // GET /api/recommendations - Get product recommendations for retailer
@@ -22,13 +22,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 10;
-
-    const recommendations = await ProductService.getRecommendations(
-      authResult.user.id,
-      limit
-    );
+    const recommendations = await ProductService.getRecommendations();
 
     return NextResponse.json({
       success: true,

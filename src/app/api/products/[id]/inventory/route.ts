@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ProductService from '@/lib/services/product-service';
+import ProductService from '@/lib/services/product-service-clean';
 import { verifyAuth } from '@/lib/auth/auth-middleware';
 
 // PUT /api/products/[id]/inventory - Update product inventory
@@ -26,7 +26,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { quantity, reason } = body;
+    const { quantity } = body;
 
     if (typeof quantity !== 'number') {
       return NextResponse.json(
@@ -37,8 +37,7 @@ export async function PUT(
 
     const product = await ProductService.updateInventory(
       params.id,
-      quantity,
-      reason
+      quantity
     );
 
     return NextResponse.json({

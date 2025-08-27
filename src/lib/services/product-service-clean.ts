@@ -1,60 +1,24 @@
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { ObjectId } from 'mongodb';
-import { mongodb, getProductsCollection, createProductIndexes } from '../database/mongodb';
-import { 
-  ProductDocument, 
-  validateProductDocument
-} from '../types/mongodb-types';
+import { ObjectId, MongoClient, Db } from 'mongodb';
 
 const prisma = new PrismaClient();
 
-// Validation Schemas
-const ProductCreateSchema = z.object({
-  name: z.string().min(1, 'Product name is required'),
-  description: z.string().optional(),
-  shortDescription: z.string().optional(),
-  sku: z.string().min(1, 'SKU is required'),
-  barcode: z.string().optional(),
-  basePrice: z.number().positive('Price must be positive'),
-  minOrderQty: z.number().int().positive().default(1),
-  maxOrderQty: z.number().int().positive().optional(),
-  stockQuantity: z.number().int().min(0, 'Stock quantity cannot be negative'),
-  lowStockAlert: z.number().int().min(0).default(10),
-  images: z.array(z.string().url()).default([]),
-  videos: z.array(z.string().url()).default([]),
-  documents: z.array(z.string().url()).default([]),
-  weight: z.number().positive().optional(),
-  dimensions: z.object({
-    length: z.number().positive(),
-    width: z.number().positive(),
-    height: z.number().positive()
-  }).optional(),
-  specifications: z.record(z.string(), z.unknown()).default({}),
-  metaTitle: z.string().optional(),
-  metaDescription: z.string().optional(),
-  categoryId: z.string().min(1, 'Category is required'),
-  tags: z.array(z.string()).default([]),
-  regions: z.array(z.string()).default(['all']),
-  visibleTo: z.array(z.string()).default(['all'])
-});
+// MongoDB Connection
+const mongoClient = new MongoClient(process.env.MONGODB_URL || 'mongodb://localhost:27017/b2b_marketplace');
+let mongodb: Db | null = null;
 
-const SearchQuerySchema = z.object({
-  query: z.string().optional(),
-  categoryId: z.string().optional(),
-  companyId: z.string().optional(),
-  minPrice: z.number().positive().optional(),
-  maxPrice: z.number().positive().optional(),
-  inStock: z.boolean().optional(),
-  tags: z.array(z.string()).optional(),
-  region: z.string().optional(),
-  visibleTo: z.string().optional(),
-  page: z.number().int().positive().default(1),
-  limit: z.number().int().positive().max(100).default(20),
-  sortBy: z.enum(['name', 'price', 'created', 'popularity', 'relevance']).default('created'),
-  sortOrder: z.enum(['asc', 'desc']).default('desc')
-});
+// Initialize MongoDB connection
+async function initMongoDB() {
+  if (!mongodb) {
+    await mongoClient.connect();
+    mongodb = mongoClient.db();
+    console.log('✅ MongoDB connected for Product Service');
+  }
+  return mongodb;
+}
 
+// Product Types
 export interface ProductData {
   name: string;
   description?: string;
@@ -112,19 +76,94 @@ export interface PriceBreakdown {
   };
 }
 
-class ProductService {
-  constructor() {
-    this.initializeDatabases();
+// MongoDB Product Document Interface
+export interface ProductDocument {
+  _id?: ObjectId;
+  companyId: string;
+  name: string;
+  description?: string;
+  shortDescription?: string;
+  sku: string;
+  barcode?: string;
+  category: {
+    primary: string;
+    secondary?: string;
+    tags: string[];
+  };
+  specifications: Record<string, unknown>;
+  pricing: {
+    basePrice: number;
+    currency: string;
+    bulkPricing: Array<{
+      minQuantity: number;
+      discount: number;
+      discountType: 'percentage' | 'fixed';
+    }>;
+  };
+  inventory: {
+    available: number;
+    reserved: number;
+    reorderLevel: number;
+    lastUpdated: Date;
+  };
+  media: {
+    images: string[];
+    videos: string[];
+    documents: string[];
+  };
+  seo: {
+    slug: string;
+    metaTitle?: string;
+    metaDescription?: string;
+    keywords: string[];
+  };
+  visibility: {
+    isActive: boolean;
+    visibleTo: string[];
+    regions: string[];
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Validation Schemas
+const ProductCreateSchema = z.object({
+  name: z.string().min(1, 'Product name is required'),
+  description: z.string().optional(),
+  shortDescription: z.string().optional(),
+  sku: z.string().min(1, 'SKU is required'),
+  barcode: z.string().optional(),
+  basePrice: z.number().positive('Price must be positive'),
+  minOrderQty: z.number().int().positive().default(1),
+  maxOrderQty: z.number().int().positive().optional(),
+  stockQuantity: z.number().int().min(0, 'Stock quantity cannot be negative'),
+  lowStockAlert: z.number().int().min(0).default(10),
+  images: z.array(z.string().url()).default([]),
+  videos: z.array(z.string().url()).default([]),
+  documents: z.array(z.string().url()).default([]),
+  weight: z.number().positive().optional(),
+  dimensions: z.object({
+    length: z.number().positive(),
+    width: z.number().positive(),
+    height: z.number().positive()
+  }).optional(),
+  specifications: z.record(z.string(), z.unknown()).default({}),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional(),
+  categoryId: z.string().min(1, 'Category is required'),
+  tags: z.array(z.string()).default([]),
+  regions: z.array(z.string()).default(['all']),
+  visibleTo: z.array(z.string()).default(['all'])
+});
+
+class ProductServiceHybrid {
+  private async getDB() {
+    return await initMongoDB();
   }
 
-  private async initializeDatabases() {
-    try {
-      await mongodb.connect();
-      await createProductIndexes();
-      console.log('✅ Product Service initialized with hybrid databases');
-    } catch (error) {
-      console.error('❌ Failed to initialize Product Service:', error);
-    }
+  private async getProductsCollection() {
+    const db = await this.getDB();
+    return db.collection('products');
   }
 
   async createProduct(companyId: string, productData: ProductData): Promise<ProductDocument> {
@@ -207,21 +246,11 @@ class ProductService {
         updatedAt: new Date()
       };
 
-      // Validate the document
-      const validationErrors = validateProductDocument(productDoc);
-      if (validationErrors.length > 0) {
-        throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
-      }
-
       // Insert into MongoDB
-      const products = getProductsCollection();
+      const products = await this.getProductsCollection();
       const result = await products.insertOne(productDoc);
       
-      const createdProduct = await products.findOne<ProductDocument>({ _id: result.insertedId });
-      if (!createdProduct) {
-        throw new Error('Failed to retrieve created product');
-      }
-
+      const createdProduct = await products.findOne({ _id: result.insertedId });
       return createdProduct as ProductDocument;
     } catch (error) {
       console.error('Error creating product:', error);
@@ -231,8 +260,7 @@ class ProductService {
 
   async searchProducts(query: SearchQuery): Promise<ProductDocument[]> {
     try {
-      const validatedQuery = SearchQuerySchema.parse(query);
-      const products = getProductsCollection();
+      const products = await this.getProductsCollection();
       
       // Build MongoDB query
       const mongoQuery: Record<string, unknown> = {
@@ -240,15 +268,14 @@ class ProductService {
       };
 
       // Company filter
-      if (validatedQuery.companyId) {
-        mongoQuery.companyId = validatedQuery.companyId;
+      if (query.companyId) {
+        mongoQuery.companyId = query.companyId;
       }
 
       // Category filter
-      if (validatedQuery.categoryId) {
-        // Get category name from PostgreSQL
+      if (query.categoryId) {
         const category = await prisma.category.findUnique({
-          where: { id: validatedQuery.categoryId }
+          where: { id: query.categoryId }
         });
         if (category) {
           mongoQuery['category.primary'] = category.name;
@@ -256,81 +283,58 @@ class ProductService {
       }
 
       // Price range filter
-      if (validatedQuery.minPrice || validatedQuery.maxPrice) {
+      if (query.minPrice || query.maxPrice) {
         const priceFilter: Record<string, number> = {};
-        if (validatedQuery.minPrice) {
-          priceFilter.$gte = validatedQuery.minPrice;
-        }
-        if (validatedQuery.maxPrice) {
-          priceFilter.$lte = validatedQuery.maxPrice;
-        }
+        if (query.minPrice) priceFilter.$gte = query.minPrice;
+        if (query.maxPrice) priceFilter.$lte = query.maxPrice;
         mongoQuery['pricing.basePrice'] = priceFilter;
       }
 
       // Stock filter
-      if (validatedQuery.inStock) {
+      if (query.inStock) {
         mongoQuery['inventory.available'] = { $gt: 0 };
       }
 
-      // Region filter
-      if (validatedQuery.region) {
-        mongoQuery['visibility.regions'] = { $in: [validatedQuery.region, 'all'] };
-      }
-
-      // Visibility filter
-      if (validatedQuery.visibleTo) {
-        mongoQuery['visibility.visibleTo'] = { $in: [validatedQuery.visibleTo, 'all'] };
-      }
-
-      // Tags filter
-      if (validatedQuery.tags && validatedQuery.tags.length > 0) {
-        mongoQuery['category.tags'] = { $in: validatedQuery.tags };
-      }
-
       // Text search
-      if (validatedQuery.query) {
-        mongoQuery.$text = { $search: validatedQuery.query };
+      if (query.query) {
+        mongoQuery.$text = { $search: query.query };
       }
 
-      // Build sort options
-      const sortOptions: Record<string, 1 | -1> = {};
-      switch (validatedQuery.sortBy) {
-        case 'name':
-          sortOptions.name = validatedQuery.sortOrder === 'asc' ? 1 : -1;
-          break;
-        case 'price':
-          sortOptions['pricing.basePrice'] = validatedQuery.sortOrder === 'asc' ? 1 : -1;
-          break;
-        case 'created':
-          sortOptions.createdAt = validatedQuery.sortOrder === 'asc' ? 1 : -1;
-          break;
-        case 'relevance':
-          if (validatedQuery.query) {
-            // For text search, use textScore
-            const cursor = products.find(mongoQuery, { score: { $meta: 'textScore' } })
-              .sort({ score: { $meta: 'textScore' } })
-              .skip(skip)
-              .limit(validatedQuery.limit);
-            return await cursor.toArray() as ProductDocument[];
-          } else {
-            sortOptions.createdAt = -1;
-          }
-          break;
-        default:
-          sortOptions.createdAt = -1;
-      }
+      // Pagination
+      const page = query.page || 1;
+      const limit = query.limit || 20;
+      const skip = (page - 1) * limit;
 
-      // Calculate pagination
-      const skip = (validatedQuery.page - 1) * validatedQuery.limit;
+      // Sort options
+      let sortOptions: Record<string, unknown> = { createdAt: -1 };
+      if (query.sortBy) {
+        switch (query.sortBy) {
+          case 'name':
+            sortOptions = { name: query.sortOrder === 'desc' ? -1 : 1 };
+            break;
+          case 'price':
+            sortOptions = { 'pricing.basePrice': query.sortOrder === 'desc' ? -1 : 1 };
+            break;
+          case 'created':
+            sortOptions = { createdAt: query.sortOrder === 'desc' ? -1 : 1 };
+            break;
+          case 'relevance':
+            if (query.query) {
+              sortOptions = { score: { $meta: 'textScore' } };
+            }
+            break;
+        }
+      }
 
       // Execute query
-      const cursor = products.find(mongoQuery)
-        .sort(sortOptions)
+      const results = await products
+        .find(mongoQuery)
+        .sort(sortOptions as Record<string, 1 | -1 | { $meta: string }>)
         .skip(skip)
-        .limit(validatedQuery.limit);
+        .limit(limit)
+        .toArray();
 
-      const results = await cursor.toArray();
-      return results;
+      return results as ProductDocument[];
     } catch (error) {
       console.error('Error searching products:', error);
       throw error;
@@ -339,9 +343,9 @@ class ProductService {
 
   async getProductById(id: string): Promise<ProductDocument | null> {
     try {
-      const products = getProductsCollection();
+      const products = await this.getProductsCollection();
       const product = await products.findOne({ _id: new ObjectId(id) });
-      return product;
+      return product as ProductDocument | null;
     } catch (error) {
       console.error('Error getting product by ID:', error);
       throw error;
@@ -350,7 +354,7 @@ class ProductService {
 
   async updateInventory(productId: string, quantity: number): Promise<ProductDocument> {
     try {
-      const products = getProductsCollection();
+      const products = await this.getProductsCollection();
       
       const result = await products.findOneAndUpdate(
         { _id: new ObjectId(productId) },
@@ -368,7 +372,7 @@ class ProductService {
         throw new Error('Product not found');
       }
 
-      return result;
+      return result as ProductDocument;
     } catch (error) {
       console.error('Error updating inventory:', error);
       throw error;
@@ -417,63 +421,20 @@ class ProductService {
     }
   }
 
-  async getRecommendations(retailerId: string): Promise<ProductDocument[]> {
+  async getRecommendations(): Promise<ProductDocument[]> {
     try {
-      // Get retailer's order history from PostgreSQL
-      const retailer = await prisma.retailer.findUnique({
-        where: { id: retailerId },
-        include: {
-          orders: {
-            include: {
-              items: true
-            },
-            take: 10,
-            orderBy: { createdAt: 'desc' }
-          }
-        }
-      });
+      const products = await this.getProductsCollection();
 
-      if (!retailer) {
-        throw new Error('Retailer not found');
-      }
-
-      // Extract product IDs from order history
-      const purchasedProductIds = retailer.orders
-        .flatMap(order => order.items.map(item => item.productId))
-        .filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
-
-      const products = getProductsCollection();
-
-      // If no purchase history, return trending products
-      if (purchasedProductIds.length === 0) {
-        return await products.find({
-          'visibility.isActive': true,
-          'inventory.available': { $gt: 0 }
-        })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .toArray();
-      }
-
-      // Get categories of purchased products
-      const purchasedProducts = await products.find({
-        _id: { $in: purchasedProductIds.map(id => new ObjectId(id)) }
-      }).toArray();
-
-      const categories = [...new Set(purchasedProducts.map(p => p.category.primary))];
-
-      // Find similar products in same categories, excluding already purchased
+      // Simple recommendation: return latest active products
       const recommendations = await products.find({
         'visibility.isActive': true,
-        'inventory.available': { $gt: 0 },
-        'category.primary': { $in: categories },
-        _id: { $nin: purchasedProductIds.map(id => new ObjectId(id)) }
+        'inventory.available': { $gt: 0 }
       })
       .sort({ createdAt: -1 })
       .limit(10)
       .toArray();
 
-      return recommendations;
+      return recommendations as ProductDocument[];
     } catch (error) {
       console.error('Error getting recommendations:', error);
       throw error;
@@ -492,29 +453,20 @@ class ProductService {
 
   async updateProduct(productId: string, updateData: Partial<ProductData>): Promise<ProductDocument> {
     try {
-      const products = getProductsCollection();
+      const products = await this.getProductsCollection();
       
-      const updateDoc: any = {
+      const updateDoc: Record<string, unknown> = {
         updatedAt: new Date()
       };
 
       // Map the update data to MongoDB document structure
       if (updateData.name) updateDoc.name = updateData.name;
       if (updateData.description) updateDoc.description = updateData.description;
-      if (updateData.shortDescription) updateDoc.shortDescription = updateData.shortDescription;
-      if (updateData.sku) updateDoc.sku = updateData.sku;
-      if (updateData.barcode) updateDoc.barcode = updateData.barcode;
       if (updateData.basePrice) updateDoc['pricing.basePrice'] = updateData.basePrice;
       if (updateData.stockQuantity !== undefined) {
         updateDoc['inventory.available'] = updateData.stockQuantity;
         updateDoc['inventory.lastUpdated'] = new Date();
       }
-      if (updateData.images) updateDoc['media.images'] = updateData.images;
-      if (updateData.videos) updateDoc['media.videos'] = updateData.videos;
-      if (updateData.documents) updateDoc['media.documents'] = updateData.documents;
-      if (updateData.specifications) updateDoc.specifications = updateData.specifications;
-      if (updateData.metaTitle) updateDoc['seo.metaTitle'] = updateData.metaTitle;
-      if (updateData.metaDescription) updateDoc['seo.metaDescription'] = updateData.metaDescription;
 
       const result = await products.findOneAndUpdate(
         { _id: new ObjectId(productId) },
@@ -526,7 +478,7 @@ class ProductService {
         throw new Error('Product not found');
       }
 
-      return result;
+      return result as ProductDocument;
     } catch (error) {
       console.error('Error updating product:', error);
       throw error;
@@ -535,9 +487,8 @@ class ProductService {
 
   async deleteProduct(productId: string): Promise<boolean> {
     try {
-      const products = getProductsCollection();
+      const products = await this.getProductsCollection();
       
-      // Soft delete by setting isActive to false
       const result = await products.findOneAndUpdate(
         { _id: new ObjectId(productId) },
         { 
@@ -557,4 +508,5 @@ class ProductService {
   }
 }
 
-export default ProductService;
+const productServiceHybrid = new ProductServiceHybrid();
+export default productServiceHybrid;
