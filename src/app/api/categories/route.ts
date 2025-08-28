@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
         children: includeChildren,
         _count: {
           select: {
-            products: true,
             children: true,
           }
         }

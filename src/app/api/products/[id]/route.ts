@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ProductService from '@/lib/services/product-service-clean';
 import { verifyAuth } from '@/lib/auth/auth-middleware';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // GET /api/products/[id] - Get product by ID
 export async function GET(
@@ -8,7 +11,38 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verify authentication
+    const authResult = await verifyAuth(request);
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const product = await ProductService.getProductById(params.id);
+
+    if (!product) {
+      return NextResponse.json(
+        { success: false, error: 'Product not found' },
+        { status: 404 }
+      );
+    }
+
+    // If user is a company, ensure they can only see their own products
+    if (authResult.user.role === 'company') {
+      const user = await prisma.user.findUnique({
+        where: { id: authResult.user.id },
+        select: { companyId: true }
+      });
+
+      if (!user?.companyId || product.companyId !== user.companyId) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized to view this product' },
+          { status: 403 }
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -50,6 +84,35 @@ export async function PUT(
     if (authResult.user.role !== 'company') {
       return NextResponse.json(
         { success: false, error: 'Only companies can update products' },
+        { status: 403 }
+      );
+    }
+
+    // Get user's company ID
+    const user = await prisma.user.findUnique({
+      where: { id: authResult.user.id },
+      select: { companyId: true }
+    });
+
+    if (!user?.companyId) {
+      return NextResponse.json(
+        { success: false, error: 'User is not associated with a company' },
+        { status: 400 }
+      );
+    }
+
+    // Check if product exists and belongs to the company
+    const existingProduct = await ProductService.getProductById(params.id);
+    if (!existingProduct) {
+      return NextResponse.json(
+        { success: false, error: 'Product not found' },
+        { status: 404 }
+      );
+    }
+
+    if (existingProduct.companyId !== user.companyId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized to update this product' },
         { status: 403 }
       );
     }
@@ -115,6 +178,35 @@ export async function DELETE(
     if (authResult.user.role !== 'company') {
       return NextResponse.json(
         { success: false, error: 'Only companies can delete products' },
+        { status: 403 }
+      );
+    }
+
+    // Get user's company ID
+    const user = await prisma.user.findUnique({
+      where: { id: authResult.user.id },
+      select: { companyId: true }
+    });
+
+    if (!user?.companyId) {
+      return NextResponse.json(
+        { success: false, error: 'User is not associated with a company' },
+        { status: 400 }
+      );
+    }
+
+    // Check if product exists and belongs to the company
+    const existingProduct = await ProductService.getProductById(params.id);
+    if (!existingProduct) {
+      return NextResponse.json(
+        { success: false, error: 'Product not found' },
+        { status: 404 }
+      );
+    }
+
+    if (existingProduct.companyId !== user.companyId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized to delete this product' },
         { status: 403 }
       );
     }

@@ -8,12 +8,42 @@ const prisma = new PrismaClient();
 // GET /api/products - Search products
 export async function GET(request: NextRequest) {
   try {
+    // Verify authentication
+    const authResult = await verifyAuth(request);
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
+    
+    // For company users, force companyId to be their own company
+    let companyId = searchParams.get('companyId') || undefined;
+    
+    if (authResult.user.role === 'company') {
+      // Get user's company ID
+      const user = await prisma.user.findUnique({
+        where: { id: authResult.user.id },
+        select: { companyId: true }
+      });
+
+      if (!user?.companyId) {
+        return NextResponse.json(
+          { success: false, error: 'User is not associated with a company' },
+          { status: 400 }
+        );
+      }
+
+      // Force companyId to be the authenticated user's company
+      companyId = user.companyId;
+    }
     
     const searchQuery = {
       query: searchParams.get('query') || undefined,
       categoryId: searchParams.get('categoryId') || undefined,
-      companyId: searchParams.get('companyId') || undefined,
+      companyId: companyId,
       minPrice: searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')!) : undefined,
       maxPrice: searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')!) : undefined,
       inStock: searchParams.get('inStock') ? searchParams.get('inStock') === 'true' : true,
@@ -27,7 +57,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: result,
+      data: {
+        products: result,
+        total: result.length,
+        page: searchQuery.page || 1,
+        limit: searchQuery.limit || 20
+      },
     });
   } catch (error) {
     console.error('Products search API error:', error);
