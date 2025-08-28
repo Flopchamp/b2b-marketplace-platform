@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // GET /api/products/[id] - Get product by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify authentication
@@ -20,7 +20,8 @@ export async function GET(
       );
     }
 
-    const product = await ProductService.getProductById(params.id);
+    const { id } = await params;
+    const product = await ProductService.getProductById(id);
 
     if (!product) {
       return NextResponse.json(
@@ -68,7 +69,7 @@ export async function GET(
 // PUT /api/products/[id] - Update product
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify authentication
@@ -101,8 +102,9 @@ export async function PUT(
       );
     }
 
+    const { id } = await params;
     // Check if product exists and belongs to the company
-    const existingProduct = await ProductService.getProductById(params.id);
+    const existingProduct = await ProductService.getProductById(id);
     if (!existingProduct) {
       return NextResponse.json(
         { success: false, error: 'Product not found' },
@@ -120,7 +122,7 @@ export async function PUT(
     const body = await request.json();
     
     const product = await ProductService.updateProduct(
-      params.id,
+      id,
       body
     );
 
@@ -162,7 +164,7 @@ export async function PUT(
 // DELETE /api/products/[id] - Delete product
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify authentication
@@ -195,8 +197,9 @@ export async function DELETE(
       );
     }
 
+    const { id } = await params;
     // Check if product exists and belongs to the company
-    const existingProduct = await ProductService.getProductById(params.id);
+    const existingProduct = await ProductService.getProductById(id);
     if (!existingProduct) {
       return NextResponse.json(
         { success: false, error: 'Product not found' },
@@ -212,7 +215,7 @@ export async function DELETE(
     }
 
     const product = await ProductService.deleteProduct(
-      params.id
+      id
     );
 
     return NextResponse.json({
