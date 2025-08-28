@@ -47,6 +47,13 @@ class MongoDBClient {
     try {
       const productsCollection = this.getCollection('products');
       
+      // Drop existing text index if it conflicts
+      try {
+        await productsCollection.dropIndex('name_text_description_text_seo.keywords_text');
+      } catch {
+        // Index might not exist, continue
+      }
+      
       // Text search index for product search
       await productsCollection.createIndex({
         name: 'text',
@@ -85,8 +92,8 @@ class MongoDBClient {
 
       console.log('MongoDB indexes created successfully');
     } catch (error) {
-      console.error('Failed to create MongoDB indexes:', error);
-      throw error;
+      console.warn('Failed to create MongoDB indexes (continuing anyway):', error);
+      // Don't throw error, continue with app startup
     }
   }
 

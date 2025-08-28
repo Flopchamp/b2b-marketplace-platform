@@ -13,6 +13,7 @@ import {
   TruckIcon,
   ShieldCheckIcon
 } from 'lucide-react';
+import CartButton from '@/components/ui/CartButton';
 
 interface Product {
   _id: string;
@@ -66,32 +67,7 @@ export default function ProductDetailPage() {
   const [selectedImage, setSelectedImage] = useState(0);
   const [activeTab, setActiveTab] = useState('description');
 
-  useEffect(() => {
-    // Check authentication
-    const accessToken = localStorage.getItem('accessToken');
-    const userData = localStorage.getItem('user');
-
-    if (!accessToken || !userData) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    try {
-      const parsedUser = JSON.parse(userData);
-      if (parsedUser.role !== 'retailer') {
-        router.push('/auth/signin');
-        return;
-      }
-    } catch (error) {
-      console.error('Error parsing user data:', error);
-      router.push('/auth/signin');
-      return;
-    }
-
-    fetchProduct();
-  }, [router]);
-
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     try {
       setLoading(true);
       const accessToken = localStorage.getItem('accessToken');
@@ -120,7 +96,32 @@ export default function ProductDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId, router]);
+
+  useEffect(() => {
+    // Check authentication
+    const accessToken = localStorage.getItem('accessToken');
+    const userData = localStorage.getItem('user');
+
+    if (!accessToken || !userData) {
+      router.push('/auth/signin');
+      return;
+    }
+
+    try {
+      const parsedUser = JSON.parse(userData);
+      if (parsedUser.role !== 'retailer') {
+        router.push('/auth/signin');
+        return;
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      router.push('/auth/signin');
+      return;
+    }
+
+    fetchProduct();
+  }, [router, fetchProduct]);
 
   const formatPrice = (price: number, currency = 'USD') => {
     return new Intl.NumberFormat('en-US', {
@@ -158,8 +159,31 @@ export default function ProductDetailPage() {
   };
 
   const handleAddToCart = () => {
-    // TODO: Implement add to cart functionality
-    alert(`Added ${quantity} ${product?.name} to cart!`);
+    if (!product) return;
+    
+    // Import CartService dynamically to avoid SSR issues
+    import('@/lib/services/cart-service').then(({ default: CartService }) => {
+      const cartItem = {
+        productId: product._id,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        totalPrice: totalPrice,
+        productName: product.name,
+        productImage: product.media?.images?.[0] || undefined,
+      };
+      
+      CartService.addToCart(cartItem);
+      
+      // Show success notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      notification.textContent = `Added ${quantity} ${product.name} to cart!`;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 3000);
+    });
   };
 
   if (loading) {
@@ -199,14 +223,19 @@ export default function ProductDetailPage() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16">
-            <button
-              onClick={() => router.push('/dashboard/retailer/products')}
-              className="mr-4 p-2 text-gray-400 hover:text-gray-600"
-            >
-              <ArrowLeftIcon className="h-5 w-5" />
-            </button>
-            <h1 className="text-xl font-semibold text-gray-900">Product Details</h1>
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <button
+                onClick={() => router.push('/dashboard/retailer/products')}
+                className="mr-4 p-2 text-gray-400 hover:text-gray-600"
+              >
+                <ArrowLeftIcon className="h-5 w-5" />
+              </button>
+              <h1 className="text-xl font-semibold text-gray-900">Product Details</h1>
+            </div>
+            <div className="flex items-center">
+              <CartButton />
+            </div>
           </div>
         </div>
       </div>

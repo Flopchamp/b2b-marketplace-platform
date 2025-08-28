@@ -249,7 +249,9 @@ export default function RetailerDashboard() {
                 </span>
               </button>
 
-              <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 rounded-lg border border-gray-300 hover:border-purple-300 hover:shadow-md transition-all">
+              <button 
+                onClick={() => router.push('/dashboard/retailer/suppliers')}
+                className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 rounded-lg border border-gray-300 hover:border-purple-300 hover:shadow-md transition-all">
                 <div>
                   <span className="rounded-lg inline-flex p-3 bg-blue-50 group-hover:bg-blue-100 transition-colors">
                     <PackageIcon className="h-6 w-6 text-blue-600" />
@@ -268,7 +270,9 @@ export default function RetailerDashboard() {
                 </span>
               </button>
 
-              <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 rounded-lg border border-gray-300 hover:border-purple-300 hover:shadow-md transition-all">
+              <button 
+                onClick={() => router.push('/dashboard/retailer/orders')}
+                className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 rounded-lg border border-gray-300 hover:border-purple-300 hover:shadow-md transition-all">
                 <div>
                   <span className="rounded-lg inline-flex p-3 bg-green-50 group-hover:bg-green-100 transition-colors">
                     <TrendingUpIcon className="h-6 w-6 text-green-600" />

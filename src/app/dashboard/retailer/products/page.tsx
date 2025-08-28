@@ -13,6 +13,7 @@ import {
   ArrowLeftIcon,
   ChevronDownIcon
 } from 'lucide-react';
+import CartButton from '@/components/ui/CartButton';
 
 interface Product {
   _id: string;
@@ -194,6 +195,9 @@ export default function RetailerProductsPage() {
               <span className="text-sm text-gray-500">
                 {products.length} products found
               </span>
+              <div className="hidden sm:block">
+                <CartButton />
+              </div>
             </div>
           </div>
         </div>
