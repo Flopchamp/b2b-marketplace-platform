@@ -1,0 +1,426 @@
+// This is your Prisma schema file for B2B Marketplace Platform
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Models
+enum UserRole {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  COMPANY_USER
+  RETAILER_ADMIN
+  RETAILER_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_VERIFICATION
+  SUSPENDED
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  name          String?
+  phone         String?
+  password      String?
+  role          UserRole    @default(RETAILER_USER)
+  status        UserStatus  @default(PENDING_VERIFICATION)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  // Relations
+  company       Company?    @relation(fields: [companyId], references: [id])
+  companyId     String?
+  retailer      Retailer?   @relation(fields: [retailerId], references: [id])
+  retailerId    String?
+  
+  // Activity tracking
+  orders        Order[]
+  reviews       Review[]
+  notifications Notification[]
+}
+
+// Company Models
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_VERIFICATION
+  SUSPENDED
+}
+
+model Company {
+  id              String        @id @default(cuid())
+  name            String
+  email           String        @unique
+  phone           String?
+  website         String?
+  description     String?
+  logo            String?
+  registrationNo  String?       @unique
+  taxId           String?
+  status          CompanyStatus @default(PENDING_VERIFICATION)
+  isVerified      Boolean       @default(false)
+  
+  // Address
+  address         String?
+  city            String?
+  state           String?
+  postalCode      String?
+  country         String?
+  
+  // Business info
+  businessType    String?
+  yearEstablished Int?
+  employeeCount   String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  users           User[]
+  products        Product[]
+  orders          Order[]
+  reviews         Review[]
+  promotions      Promotion[]
+}
+
+// Retailer Models
+enum RetailerStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_VERIFICATION
+  SUSPENDED
+}
+
+model Retailer {
+  id              String         @id @default(cuid())
+  name            String
+  email           String         @unique
+  phone           String?
+  businessName    String?
+  description     String?
+  logo            String?
+  registrationNo  String?
+  taxId           String?
+  status          RetailerStatus @default(PENDING_VERIFICATION)
+  isVerified      Boolean        @default(false)
+  
+  // Address
+  address         String?
+  city            String?
+  state           String?
+  postalCode      String?
+  country         String?
+  
+  // Business info
+  businessType    String?
+  yearEstablished Int?
+  employeeCount   String?
+  creditLimit     Float?         @default(0)
+  creditScore     Int?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  // Relations
+  users           User[]
+  orders          Order[]
+  reviews         Review[]
+}
+
+// Product Models
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  icon        String?
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  shortDescription String?
+  sku             String        @unique
+  barcode         String?
+  status          ProductStatus @default(ACTIVE)
+  
+  // Pricing
+  basePrice       Float
+  minOrderQty     Int           @default(1)
+  maxOrderQty     Int?
+  
+  // Inventory
+  stockQuantity   Int           @default(0)
+  lowStockAlert   Int           @default(10)
+  
+  // Media
+  images          String[]
+  videos          String[]
+  documents       String[]
+  
+  // Specifications
+  weight          Float?
+  dimensions      String?
+  specifications  Json?
+  
+  // SEO
+  slug            String        @unique
+  metaTitle       String?
+  metaDescription String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  company         Company       @relation(fields: [companyId], references: [id])
+  companyId       String
+  category        Category      @relation(fields: [categoryId], references: [id])
+  categoryId      String
+  
+  orderItems      OrderItem[]
+  reviews         Review[]
+  promotions      PromotionProduct[]
+  priceHistory    PriceHistory[]
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  price     Float
+  reason    String?
+  createdAt DateTime @default(now())
+  
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+}
+
+// Order Models
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_PAID
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  MOBILE_MONEY
+  CREDIT_LINE
+  CHECK
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(PENDING)
+  paymentMethod   PaymentMethod?
+  
+  // Amounts
+  subtotal        Float
+  taxAmount       Float         @default(0)
+  shippingAmount  Float         @default(0)
+  discountAmount  Float         @default(0)
+  totalAmount     Float
+  
+  // Shipping
+  shippingAddress Json?
+  billingAddress  Json?
+  trackingNumber  String?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  
+  // Dates
+  orderDate       DateTime      @default(now())
+  expectedDelivery DateTime?
+  
+  // Notes
+  notes           String?
+  internalNotes   String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  retailer        Retailer      @relation(fields: [retailerId], references: [id])
+  retailerId      String
+  company         Company       @relation(fields: [companyId], references: [id])
+  companyId       String
+  user            User          @relation(fields: [userId], references: [id])
+  userId          String
+  
+  items           OrderItem[]
+  payments        Payment[]
+  statusHistory   OrderStatusHistory[]
+}
+
+model OrderItem {
+  id              String  @id @default(cuid())
+  quantity        Int
+  unitPrice       Float
+  discountAmount  Float   @default(0)
+  totalPrice      Float
+  
+  order           Order   @relation(fields: [orderId], references: [id])
+  orderId         String
+  product         Product @relation(fields: [productId], references: [id])
+  productId       String
+  
+  @@unique([orderId, productId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  status    OrderStatus
+  notes     String?
+  createdAt DateTime    @default(now())
+  
+  order     Order       @relation(fields: [orderId], references: [id])
+  orderId   String
+}
+
+// Payment Models
+model Payment {
+  id              String        @id @default(cuid())
+  amount          Float
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?
+  reference       String?
+  notes           String?
+  processedAt     DateTime?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  order           Order         @relation(fields: [orderId], references: [id])
+  orderId         String
+}
+
+// Promotion Models
+enum PromotionType {
+  PERCENTAGE_DISCOUNT
+  FIXED_AMOUNT_DISCOUNT
+  BUY_X_GET_Y
+  FREE_SHIPPING
+  BULK_DISCOUNT
+}
+
+model Promotion {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  type            PromotionType
+  value           Float
+  code            String?       @unique
+  
+  // Conditions
+  minOrderAmount  Float?
+  maxDiscount     Float?
+  maxUsage        Int?
+  currentUsage    Int           @default(0)
+  
+  // Dates
+  startDate       DateTime
+  endDate         DateTime
+  
+  isActive        Boolean       @default(true)
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  company         Company       @relation(fields: [companyId], references: [id])
+  companyId       String
+  products        PromotionProduct[]
+}
+
+model PromotionProduct {
+  promotion   Promotion @relation(fields: [promotionId], references: [id])
+  promotionId String
+  product     Product   @relation(fields: [productId], references: [id])
+  productId   String
+  
+  @@id([promotionId, productId])
+}
+
+// Review Models
+model Review {
+  id          String   @id @default(cuid())
+  rating      Int      // 1-5 stars
+  title       String?
+  comment     String?
+  isVerified  Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  product     Product? @relation(fields: [productId], references: [id])
+  productId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  companyId   String?
+  
+  @@unique([userId, productId])
+}
+
+// Notification Models
+enum NotificationType {
+  ORDER_UPDATE
+  PAYMENT_REMINDER
+  STOCK_ALERT
+  PROMOTION
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  data      Json?
+  
+  createdAt DateTime         @default(now())
+  
+  user      User             @relation(fields: [userId], references: [id])
+  userId    String
+}

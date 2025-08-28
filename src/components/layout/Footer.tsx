@@ -3,11 +3,11 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { 
-  BuildingOfficeIcon,
-  EnvelopeIcon,
-  PhoneIcon,
-  MapPinIcon
-} from "@heroicons/react/24/outline";
+  Building,
+  Mail,
+  Phone,
+  MapPin
+} from "lucide-react";
 
 export function Footer() {
   const pathname = usePathname();
@@ -72,7 +72,7 @@ export function Footer() {
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <BuildingOfficeIcon className="h-5 w-5 text-white" />
+                <Building className="h-5 w-5 text-white" />
               </div>
               <span className="text-xl font-bold">B2B Connect</span>
             </div>
@@ -82,15 +82,15 @@ export function Footer() {
             </p>
             <div className="space-y-2 text-sm text-gray-300">
               <div className="flex items-center space-x-2">
-                <MapPinIcon className="h-4 w-4" />
+                <MapPin className="h-4 w-4" />
                 <span>123 Business Street, City, Country</span>
               </div>
               <div className="flex items-center space-x-2">
-                <PhoneIcon className="h-4 w-4" />
+                <Phone className="h-4 w-4" />
                 <span>+1 (555) 123-4567</span>
               </div>
               <div className="flex items-center space-x-2">
-                <EnvelopeIcon className="h-4 w-4" />
+                <Mail className="h-4 w-4" />
                 <span>hello@b2bconnect.com</span>
               </div>
             </div>

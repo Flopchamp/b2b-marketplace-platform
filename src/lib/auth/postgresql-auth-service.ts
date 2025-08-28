@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Pool } from 'pg';
+import { PrismaClient, Prisma } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Types
 export interface User {
@@ -59,32 +61,18 @@ export interface RetailerRegistration {
 }
 
 class PostgreSQLAuthService {
-  private pool: Pool;
-
   constructor() {
-    this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    });
-    
     // Test connection on startup
     this.testConnection();
   }
 
   private async testConnection() {
     try {
-      const client = await this.pool.connect();
-      console.log('✅ PostgreSQL connected successfully');
-      client.release();
+      await prisma.$connect();
+      console.log('✅ PostgreSQL connected successfully via Prisma');
     } catch (error) {
       console.error('❌ PostgreSQL connection failed:', error);
     }
-  }
-
-  private generateId(): string {
-    // PostgreSQL will generate UUID automatically, so we don't need this method
-    // But keeping it for compatibility
-    return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
   }
 
   private generateTokens(user: User): { accessToken: string; refreshToken: string; expiresIn: number } {
@@ -115,202 +103,173 @@ class PostgreSQLAuthService {
   }
 
   async registerCompany(data: CompanyRegistration): Promise<User> {
-    const client = await this.pool.connect();
-    
     try {
-      await client.query('BEGIN');
-
       // Check if user already exists
-      const existingUser = await client.query(
-        'SELECT id FROM users WHERE email = $1',
-        [data.email]
-      );
+      const existingUser = await prisma.user.findUnique({
+        where: { email: data.email }
+      });
 
-      if (existingUser.rows.length > 0) {
+      if (existingUser) {
         throw new Error('Email already registered');
       }
 
       // Hash password
       const passwordHash = await bcrypt.hash(data.password, 12);
 
-      // Insert user
-      const userResult = await client.query(
-        `INSERT INTO users (email, password_hash, role, verification_status, kyc_status)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, email, role, verification_status, kyc_status, created_at`,
-        [data.email, passwordHash, 'company', 'pending', 'pending']
-      );
+      // Create company and user in a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Create company first
+        const company = await tx.company.create({
+          data: {
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            website: data.website,
+            registrationNo: data.businessRegistration,
+            status: 'PENDING_VERIFICATION'
+          }
+        });
 
-      const user = userResult.rows[0];
+        // Create user and link to company
+        const user = await tx.user.create({
+          data: {
+            email: data.email,
+            password: passwordHash,
+            name: data.name,
+            role: 'COMPANY_ADMIN',
+            status: 'PENDING_VERIFICATION',
+            companyId: company.id
+          }
+        });
 
-      // Insert company details
-      await client.query(
-        `INSERT INTO companies (user_id, name, business_registration, phone, website)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [user.id, data.name, data.businessRegistration, data.phone, data.website]
-      );
+        return { user, company };
+      });
 
-      // Insert address if provided
-      if (data.address) {
-        await client.query(
-          `INSERT INTO addresses (entity_type, entity_id, street, city, state, zip_code, country)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [
-            'company',
-            user.id,
-            data.address.street,
-            data.address.city,
-            data.address.state,
-            data.address.zipCode,
-            data.address.country,
-          ]
-        );
-      }
-
-      await client.query('COMMIT');
-
+      // Return user data
       return {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        name: data.name,
-        verificationStatus: user.verification_status,
-        kycStatus: user.kyc_status,
-        createdAt: user.created_at,
+        id: result.user.id,
+        email: result.user.email,
+        role: 'company',
+        name: result.user.name || undefined,
+        businessName: result.company.name,
+        verificationStatus: 'pending',
+        createdAt: result.user.createdAt.toISOString()
       };
     } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Company registration error:', error);
+      console.error('Error in registerCompany:', error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
   async registerRetailer(data: RetailerRegistration): Promise<User> {
-    const client = await this.pool.connect();
-    
     try {
-      await client.query('BEGIN');
-
       // Check if user already exists
-      const existingUser = await client.query(
-        'SELECT id FROM users WHERE email = $1',
-        [data.email]
-      );
+      const existingUser = await prisma.user.findUnique({
+        where: { email: data.email }
+      });
 
-      if (existingUser.rows.length > 0) {
+      if (existingUser) {
         throw new Error('Email already registered');
       }
 
       // Hash password
       const passwordHash = await bcrypt.hash(data.password, 12);
 
-      // Insert user
-      const userResult = await client.query(
-        `INSERT INTO users (email, password_hash, role, verification_status, kyc_status)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, email, role, verification_status, kyc_status, created_at`,
-        [data.email, passwordHash, 'retailer', 'pending', 'pending']
-      );
+      // Create retailer and user in a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Create retailer first
+        const retailer = await tx.retailer.create({
+          data: {
+            businessName: data.businessName,
+            contactPerson: data.contactPerson,
+            email: data.email,
+            phone: data.phone,
+            status: 'PENDING_VERIFICATION'
+          }
+        });
 
-      const user = userResult.rows[0];
+        // Create user and link to retailer
+        const user = await tx.user.create({
+          data: {
+            email: data.email,
+            password: passwordHash,
+            name: data.contactPerson,
+            role: 'RETAILER_ADMIN',
+            status: 'PENDING_VERIFICATION',
+            retailerId: retailer.id
+          }
+        });
 
-      // Insert retailer details
-      await client.query(
-        `INSERT INTO retailers (user_id, business_name, contact_person, phone)
-         VALUES ($1, $2, $3, $4)`,
-        [user.id, data.businessName, data.contactPerson, data.phone]
-      );
+        return { user, retailer };
+      });
 
-      // Insert address if provided
-      if (data.address) {
-        await client.query(
-          `INSERT INTO addresses (entity_type, entity_id, street, city, state, zip_code, country)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [
-            'retailer',
-            user.id,
-            data.address.street,
-            data.address.city,
-            data.address.state,
-            data.address.zipCode,
-            data.address.country,
-          ]
-        );
-      }
-
-      await client.query('COMMIT');
-
+      // Return user data
       return {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        businessName: data.businessName,
-        verificationStatus: user.verification_status,
-        kycStatus: user.kyc_status,
-        createdAt: user.created_at,
+        id: result.user.id,
+        email: result.user.email,
+        role: 'retailer',
+        name: result.user.name || undefined,
+        businessName: result.retailer.businessName,
+        verificationStatus: 'pending',
+        kycStatus: 'pending',
+        createdAt: result.user.createdAt.toISOString()
       };
     } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Retailer registration error:', error);
+      console.error('Error in registerRetailer:', error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
   async login(credentials: LoginCredentials): Promise<AuthToken> {
-    const client = await this.pool.connect();
-    
     try {
-      // Get user with password
-      const userResult = await client.query(
-        `SELECT u.id, u.email, u.password_hash, u.role, u.verification_status, u.kyc_status, u.created_at,
-                c.name as company_name, r.business_name as retailer_business_name
-         FROM users u
-         LEFT JOIN companies c ON u.id = c.user_id
-         LEFT JOIN retailers r ON u.id = r.user_id
-         WHERE u.email = $1 AND u.role = $2 AND u.is_active = true`,
-        [credentials.email, credentials.userType]
-      );
+      // Get user with related data
+      const user = await prisma.user.findUnique({
+        where: { 
+          email: credentials.email,
+          status: { not: 'SUSPENDED' }
+        },
+        include: {
+          company: true,
+          retailer: true
+        }
+      });
 
-      if (userResult.rows.length === 0) {
+      if (!user) {
         throw new Error('Invalid credentials');
       }
 
-      const user = userResult.rows[0];
-
       // Verify password
-      const isValidPassword = await bcrypt.compare(credentials.password, user.password_hash);
+      const isValidPassword = await bcrypt.compare(credentials.password, user.password || '');
       if (!isValidPassword) {
         throw new Error('Invalid credentials');
+      }
+
+      // Check user type matches credentials
+      const isCompanyUser = user.role === 'COMPANY_ADMIN' || user.role === 'COMPANY_USER';
+      const isRetailerUser = user.role === 'RETAILER_ADMIN' || user.role === 'RETAILER_USER';
+      
+      if (credentials.userType === 'company' && !isCompanyUser) {
+        throw new Error('Invalid user type for company login');
+      }
+      
+      if (credentials.userType === 'retailer' && !isRetailerUser) {
+        throw new Error('Invalid user type for retailer login');
       }
 
       // Create user object
       const userObject: User = {
         id: user.id,
         email: user.email,
-        role: user.role,
-        name: user.company_name || undefined,
-        businessName: user.retailer_business_name || undefined,
-        verificationStatus: user.verification_status,
-        kycStatus: user.kyc_status,
-        createdAt: user.created_at,
+        role: credentials.userType,
+        name: user.name || user.company?.name || undefined,
+        businessName: user.company?.name || user.retailer?.businessName || undefined,
+        verificationStatus: user.status === 'PENDING_VERIFICATION' ? 'pending' : 
+                           user.status === 'ACTIVE' ? 'verified' : 'rejected',
+        createdAt: user.createdAt.toISOString(),
       };
 
       // Generate tokens
       const tokens = this.generateTokens(userObject);
-
-      // Store refresh token in database
-      const refreshTokenHash = await bcrypt.hash(tokens.refreshToken, 10);
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
-      await client.query(
-        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-         VALUES ($1, $2, $3)`,
-        [user.id, refreshTokenHash, expiresAt]
-      );
 
       return {
         ...tokens,
@@ -319,27 +278,17 @@ class PostgreSQLAuthService {
     } catch (error) {
       console.error('Login error:', error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
   async logout(userId: string): Promise<void> {
-    const client = await this.pool.connect();
-    
     try {
-      // Revoke refresh token
-      await client.query(
-        `UPDATE refresh_tokens 
-         SET is_revoked = true 
-         WHERE user_id = $1 AND is_revoked = false`,
-        [userId]
-      );
+      // For now, we don't have a refresh_tokens table in our schema
+      // This would be a place to revoke tokens if we implement refresh token storage
+      console.log(`User ${userId} logged out successfully`);
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
@@ -351,36 +300,32 @@ class PostgreSQLAuthService {
         role: string;
       };
       
-      const client = await this.pool.connect();
-      try {
-        const userResult = await client.query(
-          `SELECT u.id, u.email, u.role, u.verification_status, u.kyc_status, u.created_at,
-                  c.name as company_name, r.business_name as retailer_business_name
-           FROM users u
-           LEFT JOIN companies c ON u.id = c.user_id
-           LEFT JOIN retailers r ON u.id = r.user_id
-           WHERE u.id = $1 AND u.is_active = true`,
-          [payload.userId]
-        );
-
-        if (userResult.rows.length === 0) {
-          return null;
+      // Get user from database
+      const user = await prisma.user.findUnique({
+        where: { 
+          id: payload.userId,
+          status: 'ACTIVE'
+        },
+        include: {
+          company: true,
+          retailer: true
         }
+      });
 
-        const user = userResult.rows[0];
-        return {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          name: user.company_name || undefined,
-          businessName: user.retailer_business_name || undefined,
-          verificationStatus: user.verification_status,
-          kycStatus: user.kyc_status,
-          createdAt: user.created_at,
-        };
-      } finally {
-        client.release();
+      if (!user) {
+        return null;
       }
+
+      return {
+        id: user.id,
+        email: user.email,
+        role: payload.role as 'company' | 'retailer',
+        name: user.name || user.company?.name || undefined,
+        businessName: user.company?.name || user.retailer?.businessName || undefined,
+        verificationStatus: user.status === 'PENDING_VERIFICATION' ? 'pending' : 
+                           user.status === 'ACTIVE' ? 'verified' : 'rejected',
+        createdAt: user.createdAt.toISOString(),
+      };
     } catch (error) {
       console.error('Token verification error:', error);
       return null;

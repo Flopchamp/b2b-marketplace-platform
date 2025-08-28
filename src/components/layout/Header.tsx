@@ -4,12 +4,12 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { 
-  Bars3Icon, 
-  XMarkIcon, 
-  BuildingOfficeIcon,
-  ShoppingBagIcon,
-  UserCircleIcon 
-} from "@heroicons/react/24/outline";
+  Menu, 
+  X, 
+  Building,
+  ShoppingBag,
+  User 
+} from "lucide-react";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -40,7 +40,7 @@ export function Header() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <BuildingOfficeIcon className="h-5 w-5 text-white" />
+                <Building className="h-5 w-5 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900">B2B Connect</span>
             </Link>
@@ -76,7 +76,7 @@ export function Header() {
                   Sign Out
                 </button>
                 <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  <UserCircleIcon className="h-5 w-5 text-gray-600" />
+                  <User className="h-5 w-5 text-gray-600" />
                 </div>
               </div>
             ) : (
@@ -92,14 +92,14 @@ export function Header() {
                     href="/auth/register?type=company"
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1"
                   >
-                    <BuildingOfficeIcon className="h-4 w-4" />
+                    <Building className="h-4 w-4" />
                     <span>For Companies</span>
                   </Link>
                   <Link
                     href="/auth/register?type=retailer"
                     className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1"
                   >
-                    <ShoppingBagIcon className="h-4 w-4" />
+                    <ShoppingBag className="h-4 w-4" />
                     <span>For Retailers</span>
                   </Link>
                 </div>
@@ -114,9 +114,9 @@ export function Header() {
               className="text-gray-600 hover:text-gray-900 p-2"
             >
               {isMenuOpen ? (
-                <XMarkIcon className="h-6 w-6" />
+                <X className="h-6 w-6" />
               ) : (
-                <Bars3Icon className="h-6 w-6" />
+                <Menu className="h-6 w-6" />
               )}
             </button>
           </div>

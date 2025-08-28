@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { BuildingIcon, PackageIcon, TrendingUpIcon, UsersIcon, PlusIcon, LogOutIcon } from 'lucide-react';
 
 interface User {
@@ -11,12 +12,72 @@ interface User {
   name?: string;
   verificationStatus: string;
   kycStatus: string;
+  companyId?: string;
+}
+
+interface DashboardStats {
+  productsCount: number;
+  activeOrdersCount: number;
+  monthlyRevenue: number;
+  connectedRetailersCount: number;
 }
 
 export default function CompanyDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    productsCount: 0,
+    activeOrdersCount: 0,
+    monthlyRevenue: 0,
+    connectedRetailersCount: 0,
+  });
   const router = useRouter();
+
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      console.log('🔍 Debug: Access token exists?', !!accessToken);
+      console.log('🔍 Debug: Token preview:', accessToken ? accessToken.substring(0, 20) + '...' : 'No token');
+      
+      const response = await fetch(`/api/products`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+      
+      console.log('🔍 Debug: API response status:', response.status);
+      console.log('🔍 Debug: API response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🔍 Debug: API response data:', data);
+        setStats(prev => ({
+          ...prev,
+          productsCount: data.data?.products?.length || 0,
+        }));
+      } else {
+        console.log('🔍 Debug: Response not OK, status:', response.status);
+        try {
+          const errorData = await response.json();
+          console.error('🔍 Debug: API error response:', errorData);
+        } catch (parseError) {
+          console.error('🔍 Debug: Failed to parse error response:', parseError);
+          const textResponse = await response.text();
+          console.error('🔍 Debug: Raw error response:', textResponse);
+        }
+        
+        // If 401, redirect to login
+        if (response.status === 401) {
+          console.log('🔍 Debug: 401 detected, redirecting to signin');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('user');
+          router.push('/auth/signin');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  }, [router]);
 
   useEffect(() => {
     // Check if user is logged in
@@ -35,6 +96,9 @@ export default function CompanyDashboard() {
         return;
       }
       setUser(parsedUser);
+      
+      // Fetch dashboard stats
+      fetchDashboardStats();
     } catch (error) {
       console.error('Error parsing user data:', error);
       router.push('/auth/signin');
@@ -42,7 +106,7 @@ export default function CompanyDashboard() {
     }
 
     setLoading(false);
-  }, [router]);
+  }, [router, fetchDashboardStats]);
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
@@ -158,7 +222,7 @@ export default function CompanyDashboard() {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Products</dt>
-                    <dd className="text-lg font-medium text-gray-900">0</dd>
+                    <dd className="text-lg font-medium text-gray-900">{stats.productsCount}</dd>
                   </dl>
                 </div>
               </div>
@@ -174,7 +238,7 @@ export default function CompanyDashboard() {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Active Orders</dt>
-                    <dd className="text-lg font-medium text-gray-900">0</dd>
+                    <dd className="text-lg font-medium text-gray-900">{stats.activeOrdersCount}</dd>
                   </dl>
                 </div>
               </div>
@@ -190,7 +254,7 @@ export default function CompanyDashboard() {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Monthly Revenue</dt>
-                    <dd className="text-lg font-medium text-gray-900">$0</dd>
+                    <dd className="text-lg font-medium text-gray-900">${stats.monthlyRevenue}</dd>
                   </dl>
                 </div>
               </div>
@@ -206,7 +270,7 @@ export default function CompanyDashboard() {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Connected Retailers</dt>
-                    <dd className="text-lg font-medium text-gray-900">0</dd>
+                    <dd className="text-lg font-medium text-gray-900">{stats.connectedRetailersCount}</dd>
                   </dl>
                 </div>
               </div>
@@ -219,29 +283,52 @@ export default function CompanyDashboard() {
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-lg border border-gray-300 hover:border-blue-300 hover:shadow-md transition-all">
-                <div>
-                  <span className="rounded-lg inline-flex p-3 bg-blue-50 group-hover:bg-blue-100 transition-colors">
-                    <PlusIcon className="h-6 w-6 text-blue-600" />
+              <Link href="/dashboard/company/products/add">
+                <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-lg border border-gray-300 hover:border-blue-300 hover:shadow-md transition-all w-full text-left">
+                  <div>
+                    <span className="rounded-lg inline-flex p-3 bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                      <PlusIcon className="h-6 w-6 text-blue-600" />
+                    </span>
+                  </div>
+                  <div className="mt-4">
+                    <h3 className="text-lg font-medium text-gray-900">Add Products</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Start by adding your products to the catalog
+                    </p>
+                  </div>
+                  <span className="pointer-events-none absolute top-6 right-6 text-gray-300 group-hover:text-gray-400 transition-colors">
+                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="m11.293 17.293 1.414 1.414L19.414 12l-6.707-6.707-1.414 1.414L15.586 11H6v2h9.586l-4.293 4.293z" />
+                    </svg>
                   </span>
-                </div>
-                <div className="mt-4">
-                  <h3 className="text-lg font-medium text-gray-900">Add Products</h3>
-                  <p className="mt-2 text-sm text-gray-500">
-                    Start by adding your products to the catalog
-                  </p>
-                </div>
-                <span className="pointer-events-none absolute top-6 right-6 text-gray-300 group-hover:text-gray-400 transition-colors">
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="m11.293 17.293 1.414 1.414L19.414 12l-6.707-6.707-1.414 1.414L15.586 11H6v2h9.586l-4.293 4.293z" />
-                  </svg>
-                </span>
-              </button>
+                </button>
+              </Link>
+
+              <Link href="/dashboard/company/products">
+                <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-lg border border-gray-300 hover:border-blue-300 hover:shadow-md transition-all w-full text-left">
+                  <div>
+                    <span className="rounded-lg inline-flex p-3 bg-green-50 group-hover:bg-green-100 transition-colors">
+                      <PackageIcon className="h-6 w-6 text-green-600" />
+                    </span>
+                  </div>
+                  <div className="mt-4">
+                    <h3 className="text-lg font-medium text-gray-900">View Products</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Manage your existing product catalog
+                    </p>
+                  </div>
+                  <span className="pointer-events-none absolute top-6 right-6 text-gray-300 group-hover:text-gray-400 transition-colors">
+                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="m11.293 17.293 1.414 1.414L19.414 12l-6.707-6.707-1.414 1.414L15.586 11H6v2h9.586l-4.293 4.293z" />
+                    </svg>
+                  </span>
+                </button>
+              </Link>
 
               <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-lg border border-gray-300 hover:border-blue-300 hover:shadow-md transition-all">
                 <div>
-                  <span className="rounded-lg inline-flex p-3 bg-green-50 group-hover:bg-green-100 transition-colors">
-                    <UsersIcon className="h-6 w-6 text-green-600" />
+                  <span className="rounded-lg inline-flex p-3 bg-purple-50 group-hover:bg-purple-100 transition-colors">
+                    <UsersIcon className="h-6 w-6 text-purple-600" />
                   </span>
                 </div>
                 <div className="mt-4">
@@ -259,8 +346,8 @@ export default function CompanyDashboard() {
 
               <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-lg border border-gray-300 hover:border-blue-300 hover:shadow-md transition-all">
                 <div>
-                  <span className="rounded-lg inline-flex p-3 bg-purple-50 group-hover:bg-purple-100 transition-colors">
-                    <TrendingUpIcon className="h-6 w-6 text-purple-600" />
+                  <span className="rounded-lg inline-flex p-3 bg-indigo-50 group-hover:bg-indigo-100 transition-colors">
+                    <TrendingUpIcon className="h-6 w-6 text-indigo-600" />
                   </span>
                 </div>
                 <div className="mt-4">
