@@ -227,7 +227,10 @@ export default function RetailerDashboard() {
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 rounded-lg border border-gray-300 hover:border-purple-300 hover:shadow-md transition-all">
+              <button 
+                onClick={() => router.push('/dashboard/retailer/products')}
+                className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 rounded-lg border border-gray-300 hover:border-purple-300 hover:shadow-md transition-all"
+              >
                 <div>
                   <span className="rounded-lg inline-flex p-3 bg-purple-50 group-hover:bg-purple-100 transition-colors">
                     <SearchIcon className="h-6 w-6 text-purple-600" />
@@ -295,7 +298,10 @@ export default function RetailerDashboard() {
               <ShoppingCartIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h4 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h4>
               <p className="text-gray-500 mb-4">Start browsing products to see your activity here</p>
-              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+              <button 
+                onClick={() => router.push('/dashboard/retailer/products')}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+              >
                 <SearchIcon className="h-4 w-4 mr-2" />
                 Browse Products
               </button>
