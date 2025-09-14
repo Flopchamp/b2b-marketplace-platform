@@ -10,6 +10,7 @@ import {
   ArrowLeftIcon
 } from '@heroicons/react/24/outline';
 import CartService, { Cart } from '@/lib/services/cart-service';
+import StripePaymentForm from '@/components/ui/StripePaymentForm';
 
 interface ShippingAddress {
   street: string;
@@ -22,7 +23,6 @@ interface ShippingAddress {
 export default function CheckoutPage() {
   const router = useRouter();
   const [cart, setCart] = useState<Cart>({ items: [], totalItems: 0, totalAmount: 0 });
-  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // 1: Review, 2: Shipping, 3: Payment, 4: Confirmation
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderId, setOrderId] = useState('');
@@ -88,13 +88,12 @@ export default function CheckoutPage() {
            shippingAddress.zipCode;
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = async (paymentIntentId?: string) => {
     if (!validateAddress()) {
       alert('Please complete all shipping address fields');
       return;
     }
 
-    setLoading(true);
     try {
       const accessToken = localStorage.getItem('accessToken');
 
@@ -106,7 +105,8 @@ export default function CheckoutPage() {
           totalPrice: item.totalPrice
         })),
         shippingAddress,
-        notes: 'Order placed through checkout'
+        paymentIntentId, // Include Stripe payment intent ID
+        notes: paymentIntentId ? 'Order placed with Stripe payment' : 'Order placed through checkout'
       };
 
       const response = await fetch('/api/orders', {
@@ -146,8 +146,6 @@ export default function CheckoutPage() {
     } catch (error) {
       console.error('Error placing order:', error);
       alert('Failed to place order. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -360,63 +358,34 @@ export default function CheckoutPage() {
 
             {step === 3 && (
               <div className="bg-white rounded-lg border p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Payment Method</h2>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-center">
-                    <CreditCardIcon className="h-5 w-5 text-blue-500 mr-2" />
-                    <span className="text-sm text-blue-700">
-                      Payment processing is simulated for demo purposes
-                    </span>
-                  </div>
+                <h2 className="text-lg font-medium text-gray-900 mb-6">Payment</h2>
+                
+                <div className="flex justify-center">
+                  <StripePaymentForm
+                    amount={cart.totalAmount}
+                    currency="usd"
+                    orderId={undefined} // Will be created after payment success
+                    onSuccess={async (paymentIntentId) => {
+                      // Create order after successful payment
+                      await handlePlaceOrder(paymentIntentId);
+                    }}
+                    onError={(error) => {
+                      console.error('Payment error:', error);
+                      alert(`Payment failed: ${error}`);
+                    }}
+                    metadata={{
+                      customerType: 'retailer',
+                      cartItemCount: cart.totalItems.toString(),
+                    }}
+                  />
                 </div>
-                <div className="space-y-4">
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center">
-                      <input
-                        type="radio"
-                        id="credit-card"
-                        name="payment-method"
-                        defaultChecked
-                        className="mr-3"
-                      />
-                      <label htmlFor="credit-card" className="text-sm font-medium text-gray-900">
-                        Credit Card (Demo)
-                      </label>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1 ml-6">
-                      Visa, Mastercard, American Express
-                    </p>
-                  </div>
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center">
-                      <input
-                        type="radio"
-                        id="net-terms"
-                        name="payment-method"
-                        className="mr-3"
-                      />
-                      <label htmlFor="net-terms" className="text-sm font-medium text-gray-900">
-                        Net 30 Terms (Coming Soon)
-                      </label>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1 ml-6">
-                      Pay within 30 days of delivery
-                    </p>
-                  </div>
-                </div>
+                
                 <div className="mt-6 flex justify-between">
                   <button
                     onClick={() => setStep(2)}
                     className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                   >
                     Back
-                  </button>
-                  <button
-                    onClick={handlePlaceOrder}
-                    disabled={loading}
-                    className="px-8 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Placing Order...' : 'Place Order'}
                   </button>
                 </div>
               </div>

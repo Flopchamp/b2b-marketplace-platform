@@ -5,6 +5,8 @@ class MongoDBClient {
   private static instance: MongoDBClient;
   private client: MongoClient;
   private db: Db | null = null;
+  private isConnecting: boolean = false;
+  private connectionPromise: Promise<void> | null = null;
 
   private constructor() {
     const uri = process.env.MONGODB_URL || 'mongodb://localhost:27017';
@@ -19,6 +21,29 @@ class MongoDBClient {
   }
 
   public async connect(): Promise<void> {
+    // If already connected, return immediately
+    if (this.db) {
+      return;
+    }
+
+    // If already connecting, wait for the existing connection
+    if (this.isConnecting && this.connectionPromise) {
+      return this.connectionPromise;
+    }
+
+    // Start connecting
+    this.isConnecting = true;
+    this.connectionPromise = this._connect();
+    
+    try {
+      await this.connectionPromise;
+    } finally {
+      this.isConnecting = false;
+      this.connectionPromise = null;
+    }
+  }
+
+  private async _connect(): Promise<void> {
     try {
       await this.client.connect();
       this.db = this.client.db(process.env.MONGODB_DATABASE || 'b2b_marketplace');
@@ -28,24 +53,31 @@ class MongoDBClient {
       await this.initializeIndexes();
     } catch (error) {
       console.error('Failed to connect to MongoDB:', error);
+      this.db = null;
       throw error;
     }
   }
 
-  public getDb(): Db {
+  public async getDb(): Promise<Db> {
     if (!this.db) {
-      throw new Error('MongoDB not connected. Call connect() first.');
+      await this.connect();
     }
+    
+    if (!this.db) {
+      throw new Error('MongoDB connection failed');
+    }
+    
     return this.db;
   }
 
-  public getCollection<T extends Document = Document>(name: string): Collection<T> {
-    return this.getDb().collection<T>(name);
+  public async getCollection<T extends Document = Document>(name: string): Promise<Collection<T>> {
+    const db = await this.getDb();
+    return db.collection<T>(name);
   }
 
   private async initializeIndexes(): Promise<void> {
     try {
-      const productsCollection = this.getCollection('products');
+      const productsCollection = await this.getCollection('products');
       
       // Drop existing text index if it conflicts
       try {

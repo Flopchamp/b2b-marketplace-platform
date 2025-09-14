@@ -28,7 +28,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const db = mongoClient.getDb();
+    // Ensure MongoDB is connected
+    try {
+      await mongoClient.connect();
+    } catch (connectError) {
+      console.log('MongoDB already connected or connection failed:', connectError);
+    }
+
+    const db = await mongoClient.getDb();
     
     // Fetch all companies/suppliers with their aggregated data
     const suppliers = await db.collection('companies').aggregate([
