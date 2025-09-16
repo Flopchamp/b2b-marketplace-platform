@@ -325,6 +325,27 @@ export default function CompanyDashboard() {
                 </button>
               </Link>
 
+              <Link href="/dashboard/company/orders">
+                <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-lg border border-gray-300 hover:border-blue-300 hover:shadow-md transition-all w-full text-left">
+                  <div>
+                    <span className="rounded-lg inline-flex p-3 bg-orange-50 group-hover:bg-orange-100 transition-colors">
+                      <TrendingUpIcon className="h-6 w-6 text-orange-600" />
+                    </span>
+                  </div>
+                  <div className="mt-4">
+                    <h3 className="text-lg font-medium text-gray-900">Manage Orders</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      View and manage incoming orders from retailers
+                    </p>
+                  </div>
+                  <span className="pointer-events-none absolute top-6 right-6 text-gray-300 group-hover:text-gray-400 transition-colors">
+                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="m11.293 17.293 1.414 1.414L19.414 12l-6.707-6.707-1.414 1.414L15.586 11H6v2h9.586l-4.293 4.293z" />
+                    </svg>
+                  </span>
+                </button>
+              </Link>
+
               <button className="relative group bg-white p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-lg border border-gray-300 hover:border-blue-300 hover:shadow-md transition-all">
                 <div>
                   <span className="rounded-lg inline-flex p-3 bg-purple-50 group-hover:bg-purple-100 transition-colors">

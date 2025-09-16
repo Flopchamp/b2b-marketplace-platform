@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeftIcon, PackageIcon, SaveIcon, LoaderIcon } from 'lucide-react';
+import FileUpload from '@/components/ui/FileUpload';
 
 interface ProductFormData {
   name: string;
@@ -18,6 +19,10 @@ interface ProductFormData {
     material?: string;
     color?: string;
     brand?: string;
+  };
+  media: {
+    images: string[];
+    documents: string[];
   };
 }
 
@@ -42,7 +47,11 @@ export default function EditProductPage() {
     stockQuantity: 0,
     lowStockAlert: 10,
     sku: '',
-    specifications: {}
+    specifications: {},
+    media: {
+      images: [],
+      documents: []
+    }
   });
 
   useEffect(() => {
@@ -90,6 +99,10 @@ export default function EditProductPage() {
               color: product.specifications.color || '',
               material: product.specifications.material || '',
               weight: product.specifications.weight || ''
+            },
+            media: {
+              images: product.media?.images || [],
+              documents: product.media?.documents || []
             }
           });
         } else {
@@ -130,7 +143,9 @@ export default function EditProductPage() {
         stockQuantity: formData.stockQuantity,
         lowStockAlert: formData.lowStockAlert,
         categoryId: formData.categoryId,
-        specifications: formData.specifications
+        specifications: formData.specifications,
+        images: formData.media.images,
+        documents: formData.media.documents
       };
 
       const response = await fetch(`/api/products/${params.id}`, {
@@ -397,6 +412,44 @@ export default function EditProductPage() {
                   value={formData.specifications.weight || ''}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Media Upload */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Media</h3>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Product Images
+                </label>
+                <FileUpload
+                  type="images"
+                  multiple={true}
+                  maxFiles={10}
+                  value={formData.media.images}
+                  onChange={(urls) => setFormData(prev => ({
+                    ...prev,
+                    media: { ...prev.media, images: urls }
+                  }))}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Documents (Spec sheets, certificates, etc.)
+                </label>
+                <FileUpload
+                  type="documents"
+                  multiple={true}
+                  maxFiles={5}
+                  value={formData.media.documents}
+                  onChange={(urls) => setFormData(prev => ({
+                    ...prev,
+                    media: { ...prev.media, documents: urls }
+                  }))}
                 />
               </div>
             </div>

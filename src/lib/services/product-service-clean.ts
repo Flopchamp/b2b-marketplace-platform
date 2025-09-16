@@ -462,10 +462,45 @@ class ProductServiceHybrid {
       // Map the update data to MongoDB document structure
       if (updateData.name) updateDoc.name = updateData.name;
       if (updateData.description) updateDoc.description = updateData.description;
-      if (updateData.basePrice) updateDoc['pricing.basePrice'] = updateData.basePrice;
+      if (updateData.sku) updateDoc.sku = updateData.sku;
+      if (updateData.basePrice !== undefined) updateDoc['pricing.basePrice'] = updateData.basePrice;
+      if (updateData.minOrderQty !== undefined) updateDoc['pricing.minOrderQty'] = updateData.minOrderQty;
       if (updateData.stockQuantity !== undefined) {
         updateDoc['inventory.available'] = updateData.stockQuantity;
         updateDoc['inventory.lastUpdated'] = new Date();
+      }
+      if (updateData.lowStockAlert !== undefined) {
+        updateDoc['inventory.reorderLevel'] = updateData.lowStockAlert;
+      }
+      
+      // Handle media updates
+      if (updateData.images !== undefined) {
+        updateDoc['media.images'] = updateData.images;
+      }
+      if (updateData.documents !== undefined) {
+        updateDoc['media.documents'] = updateData.documents;
+      }
+      
+      // Handle specifications updates
+      if (updateData.specifications) {
+        for (const [key, value] of Object.entries(updateData.specifications)) {
+          if (value !== undefined) {
+            updateDoc[`specifications.${key}`] = value;
+          }
+        }
+      }
+      
+      // Handle category update
+      if (updateData.categoryId) {
+        // Verify category exists in PostgreSQL
+        const category = await prisma.category.findUnique({
+          where: { id: updateData.categoryId }
+        });
+        
+        if (category) {
+          updateDoc['category.primary'] = category.name;
+          updateDoc.categoryId = updateData.categoryId;
+        }
       }
 
       const result = await products.findOneAndUpdate(

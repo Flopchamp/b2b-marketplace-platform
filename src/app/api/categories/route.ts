@@ -1,42 +1,119 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { connectToMongoDB } from '@/lib/mongodb';
+import { verifyAuth } from '@/lib/auth/auth-middleware';
 
 const prisma = new PrismaClient();
 
 // GET /api/categories - Get all categories
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await verifyAuth(request);
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const includeChildren = searchParams.get('includeChildren') === 'true';
     const parentId = searchParams.get('parentId');
 
-    const where: { parentId?: string | null } = {};
-    
-    if (parentId === 'null' || parentId === '') {
-      where.parentId = null; // Root categories
-    } else if (parentId) {
-      where.parentId = parentId;
-    }
-
-    const categories = await prisma.category.findMany({
-      where,
-      include: {
-        children: includeChildren,
-        _count: {
-          select: {
-            children: true,
+    // Try MongoDB first (for product catalog)
+    try {
+      const { db } = await connectToMongoDB();
+      
+      // Get categories with product counts from MongoDB
+      const categories = await db.collection('categories').aggregate([
+        {
+          $match: { isActive: true }
+        },
+        {
+          $lookup: {
+            from: 'products',
+            let: { categoryId: { $toString: '$_id' } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$categoryId', '$$categoryId'] },
+                      { $eq: ['$isActive', true] },
+                      { $gt: ['$stock', 0] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: 'products'
           }
+        },
+        {
+          $project: {
+            id: { $toString: '$_id' },
+            name: 1,
+            slug: 1,
+            description: 1,
+            image: 1,
+            count: { $size: '$products' },
+            level: 1,
+            parentId: 1
+          }
+        },
+        {
+          $sort: { order: 1, name: 1 }
         }
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
+      ]).toArray();
 
-    return NextResponse.json({
-      success: true,
-      data: categories,
-    });
+      return NextResponse.json({
+        success: true,
+        categories
+      });
+
+    } catch (mongoError) {
+      console.log('MongoDB not available, falling back to PostgreSQL');
+      
+      // Fallback to PostgreSQL categories
+      const where: { parentId?: string | null } = {};
+      
+      if (parentId === 'null' || parentId === '') {
+        where.parentId = null; // Root categories
+      } else if (parentId) {
+        where.parentId = parentId;
+      }
+
+      const categories = await prisma.category.findMany({
+        where,
+        include: {
+          children: includeChildren,
+          _count: {
+            select: {
+              children: true,
+            }
+          }
+        },
+        orderBy: {
+          name: 'asc'
+        }
+      });
+
+      // Transform to match MongoDB format
+      const transformedCategories = categories.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        description: cat.description,
+        count: 0, // TODO: Calculate product count from PostgreSQL
+        level: cat.level,
+        parentId: cat.parentId
+      }));
+
+      return NextResponse.json({
+        success: true,
+        categories: transformedCategories
+      });
+    }
 
   } catch (error) {
     console.error('Categories API error:', error);

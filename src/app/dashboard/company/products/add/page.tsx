@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeftIcon, PackageIcon, SaveIcon, LoaderIcon } from 'lucide-react';
+import FileUpload from '@/components/ui/FileUpload';
 
 interface ProductFormData {
   name: string;
@@ -426,6 +427,44 @@ export default function AddProductPage() {
                   onChange={handleInputChange}
                   placeholder="e.g., 1.5kg"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Media Upload */}
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Media</h2>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Product Images
+                </label>
+                <FileUpload
+                  type="images"
+                  multiple={true}
+                  maxFiles={10}
+                  value={formData.media.images}
+                  onChange={(urls) => setFormData(prev => ({
+                    ...prev,
+                    media: { ...prev.media, images: urls }
+                  }))}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Documents (Spec sheets, certificates, etc.)
+                </label>
+                <FileUpload
+                  type="documents"
+                  multiple={true}
+                  maxFiles={5}
+                  value={formData.media.documents}
+                  onChange={(urls) => setFormData(prev => ({
+                    ...prev,
+                    media: { ...prev.media, documents: urls }
+                  }))}
                 />
               </div>
             </div>
